@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG Drawing App</title>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .card {
+    background: white;
+    width: 95%;
+    max-width: 400px;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  input, select {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+  }
+
+  button {
+    width: 100%;
+    padding: 10px;
+    background: #4e73df;
+    color: white;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  button:hover {
+    background: #2e59d9;
+  }
+
+  .link {
+    text-align: center;
+    margin-top: 10px;
+    cursor: pointer;
+    color: #4e73df;
+  }
+
+  /* Drawing Page */
+  .app-container {
+    display: none;
+    flex-direction: column;
+    width: 95vw;
+    height: 95vh;
+    background: white;
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  #canvas {
+    flex: 1;
+    width: 100%;
+    border: 2px solid #333;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .topbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="card" id="loginPage">
+  <h2>Login</h2>
+  <input type="text" id="loginUsername" placeholder="Username">
+  <input type="password" id="loginPassword" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <div class="link" onclick="showSignup()">Don't have an account? Signup</div>
+</div>
+
+<!-- SIGNUP -->
+<div class="card" id="signupPage" style="display:none;">
+  <h2>Signup</h2>
+  <input type="text" id="signupUsername" placeholder="Username">
+  <input type="password" id="signupPassword" placeholder="Password">
+  <button onclick="signup()">Signup</button>
+  <div class="link" onclick="showLogin()">Already have an account? Login</div>
+</div>
+
+<!-- DRAWING APP -->
+<div class="app-container" id="appPage">
+  <div class="topbar">
+    <div class="controls">
+      <input type="color" id="colorPicker" value="#0000ff">
+      <input type="number" id="strokeWidth" value="2" min="1" max="10">
+      <select id="shapeSelect">
+        <option value="freehand">Freehand</option>
+        <option value="rectangle">Rectangle</option>
+      </select>
+      <button onclick="undo()">Undo</button>
+      <button onclick="clearCanvas()">Clear</button>
+    </div>
+    <button onclick="logout()">Logout</button>
+  </div>
+  <svg id="canvas"></svg>
+</div>
+
+<script>
+/* ---------------- Authentication ---------------- */
+
+function showSignup() {
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("signupPage").style.display = "block";
+}
+
+function showLogin() {
+  document.getElementById("signupPage").style.display = "none";
+  document.getElementById("loginPage").style.display = "block";
+}
+
+function signup() {
+  const user = document.getElementById("signupUsername").value;
+  const pass = document.getElementById("signupPassword").value;
+
+  if (!user || !pass) {
+    alert("Please fill all fields");
+    return;
+  }
+
+  localStorage.setItem("user", JSON.stringify({username: user, password: pass}));
+  alert("Signup successful! Please login.");
+  showLogin();
+}
+
+function login() {
+  const user = document.getElementById("loginUsername").value;
+  const pass = document.getElementById("loginPassword").value;
+
+  const storedUser = JSON.parse(localStorage.getItem("user"));
+
+  if (!storedUser || user !== storedUser.username || pass !== storedUser.password) {
+    alert("Invalid credentials");
+    return;
+  }
+
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("appPage").style.display = "flex";
+}
+
+function logout() {
+  document.getElementById("appPage").style.display = "none";
+  document.getElementById("loginPage").style.display = "block";
+}
+
+/* ---------------- SVG Drawing ---------------- */
+
+const svg = document.getElementById("canvas");
+let isDrawing = false;
+let currentElement = null;
+let startPoint = null;
+
+function getSVGPoint(evt) {
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+svg.addEventListener("mousedown", (evt) => {
+  isDrawing = true;
+  startPoint = getSVGPoint(evt);
+
+  const color = document.getElementById("colorPicker").value;
+  const strokeWidth = document.getElementById("strokeWidth").value;
+  const shape = document.getElementById("shapeSelect").value;
+
+  if (shape === "freehand") {
+    currentElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    currentElement.setAttribute("fill", "none");
+    currentElement.setAttribute("stroke", color);
+    currentElement.setAttribute("stroke-width", strokeWidth);
+    currentElement.setAttribute("d", `M ${startPoint.x} ${startPoint.y}`);
+  } else {
+    currentElement = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    currentElement.setAttribute("x", startPoint.x);
+    currentElement.setAttribute("y", startPoint.y);
+    currentElement.setAttribute("width", 0);
+    currentElement.setAttribute("height", 0);
+    currentElement.setAttribute("fill", "none");
+    currentElement.setAttribute("stroke", color);
+    currentElement.setAttribute("stroke-width", strokeWidth);
+  }
+
+  svg.appendChild(currentElement);
+});
+
+svg.addEventListener("mousemove", (evt) => {
+  if (!isDrawing) return;
+
+  const point = getSVGPoint(evt);
+  const shape = document.getElementById("shapeSelect").value;
+
+  if (shape === "freehand") {
+    const d = currentElement.getAttribute("d");
+    currentElement.setAttribute("d", `${d} L ${point.x} ${point.y}`);
+  } else {
+    const width = point.x - startPoint.x;
+    const height = point.y - startPoint.y;
+    currentElement.setAttribute("width", Math.abs(width));
+    currentElement.setAttribute("height", Math.abs(height));
+    currentElement.setAttribute("x", width < 0 ? point.x : startPoint.x);
+    currentElement.setAttribute("y", height < 0 ? point.y : startPoint.y);
+  }
+});
+
+svg.addEventListener("mouseup", () => {
+  isDrawing = false;
+  currentElement = null;
+});
+
+svg.addEventListener("mouseleave", () => {
+  isDrawing = false;
+  currentElement = null;
+});
+
+function undo() {
+  if (svg.lastChild) svg.removeChild(svg.lastChild);
+}
+
+function clearCanvas() {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+}
+</script>
+
+</body>
+</html>
